@@ -31,6 +31,12 @@ public final class JobDependencyRepository {
             WHERE PARENT_JOB_NAME = ? AND PARENT_JOB_GROUP = ? AND ACTIVE = TRUE
             FETCH FIRST 1 ROW ONLY
             """;
+    private static final String SELECT_ACTIVE_PARENT_DEPENDENCIES = """
+            SELECT ID, PARENT_JOB_NAME, PARENT_JOB_GROUP, CHILD_JOB_NAME, CHILD_JOB_GROUP, TRIGGER_TYPE, ACTIVE
+            FROM JOB_DEPENDENCIES
+            WHERE CHILD_JOB_NAME = ? AND CHILD_JOB_GROUP = ? AND ACTIVE = TRUE
+            ORDER BY ID
+            """;
 
     private final String jdbcUrl;
     private final String jdbcUser;
@@ -83,6 +89,26 @@ public final class JobDependencyRepository {
                 return resultSet.next();
             }
         }
+    }
+
+    public List<JobDependency> findActiveParentDependencies(JobKey childJobKey) throws SQLException {
+        List<JobDependency> dependencies = new ArrayList<>();
+        try (Connection connection = openConnection();
+                PreparedStatement statement = connection.prepareStatement(SELECT_ACTIVE_PARENT_DEPENDENCIES)) {
+            statement.setString(1, childJobKey.getName());
+            statement.setString(2, childJobKey.getGroup());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    dependencies.add(new JobDependency(
+                            resultSet.getLong("ID"),
+                            JobKey.jobKey(resultSet.getString("PARENT_JOB_NAME"), resultSet.getString("PARENT_JOB_GROUP")),
+                            JobKey.jobKey(resultSet.getString("CHILD_JOB_NAME"), resultSet.getString("CHILD_JOB_GROUP")),
+                            TriggerType.valueOf(resultSet.getString("TRIGGER_TYPE")),
+                            resultSet.getBoolean("ACTIVE")));
+                }
+            }
+        }
+        return dependencies;
     }
 
     private Connection openConnection() throws SQLException {

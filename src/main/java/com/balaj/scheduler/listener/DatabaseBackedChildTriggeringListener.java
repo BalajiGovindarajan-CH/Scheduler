@@ -104,6 +104,12 @@ public final class DatabaseBackedChildTriggeringListener implements JobListener 
     private void scheduleChildTrigger(
             JobExecutionContext context, JobDependency dependency, String correlationId, JobKey rootJobKey)
             throws SchedulerException {
+        if (dependency.triggerType() == TriggerType.SCHEDULE_ONLY) {
+            LOGGER.info("Dependency {} from parent {} to child {} is schedule-only. Child trigger creation skipped.",
+                    dependency.id(), dependency.parentJobKey(), dependency.childJobKey());
+            return;
+        }
+
         Trigger trigger = createTrigger(context, dependency.childJobKey(), dependency.triggerType(), correlationId, rootJobKey);
         TriggerKey triggerKey = trigger.getKey();
         if (context.getScheduler().checkExists(triggerKey)) {
@@ -139,6 +145,7 @@ public final class DatabaseBackedChildTriggeringListener implements JobListener 
 
         return switch (triggerType) {
             case FIRE_ONCE_IMMEDIATELY -> builder.startNow().build();
+            case SCHEDULE_ONLY -> throw new IllegalArgumentException("Schedule-only dependencies do not create triggers.");
         };
     }
 

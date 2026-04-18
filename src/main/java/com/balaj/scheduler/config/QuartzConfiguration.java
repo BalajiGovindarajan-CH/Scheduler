@@ -2,6 +2,7 @@ package com.balaj.scheduler.config;
 
 import com.balaj.scheduler.jobs.LoggingJob;
 import com.balaj.scheduler.jobs.LoggingJob2;
+import com.balaj.scheduler.jobs.LoggingJob3;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
@@ -18,6 +19,10 @@ public final class QuartzConfiguration {
     public static final String DOWNSTREAM_JOB_GROUP = "demo-downstream";
     public static final String DOWNSTREAM_JOB_NAME = "sampleLoggingJob2";
     public static final String DOWNSTREAM_TRIGGER_NAME_PREFIX = "sampleLoggingTrigger2";
+    public static final String SCHEDULED_DEPENDENT_JOB_GROUP = "demo-scheduled-dependent";
+    public static final String SCHEDULED_DEPENDENT_JOB_NAME = "sampleLoggingJob3";
+    public static final String SCHEDULED_DEPENDENT_TRIGGER_NAME = "sampleLoggingTrigger3";
+    public static final String SCHEDULED_DEPENDENT_RETRY_TRIGGER_NAME_PREFIX = "sampleLoggingTrigger3-retry";
     public static final String DESCRIPTION_KEY = "description";
     public static final String PARENT_JOB_KEY = "parentJobKey";
     public static final String PARENT_JOB_NAME_KEY = "parentJobName";
@@ -78,6 +83,24 @@ public final class QuartzConfiguration {
         return JobBuilder.newJob(LoggingJob2.class)
                 .withIdentity(DOWNSTREAM_JOB_NAME, DOWNSTREAM_JOB_GROUP)
                 .storeDurably()
+                .build();
+    }
+
+    public static JobDetail createScheduledDependentJobDetail() {
+        return JobBuilder.newJob(LoggingJob3.class)
+                .withIdentity(SCHEDULED_DEPENDENT_JOB_NAME, SCHEDULED_DEPENDENT_JOB_GROUP)
+                .storeDurably()
+                .build();
+    }
+
+    public static Trigger createScheduledDependentTrigger() {
+        return TriggerBuilder.newTrigger()
+                .withIdentity(SCHEDULED_DEPENDENT_TRIGGER_NAME, SCHEDULED_DEPENDENT_JOB_GROUP)
+                .forJob(SCHEDULED_DEPENDENT_JOB_NAME, SCHEDULED_DEPENDENT_JOB_GROUP)
+                .withSchedule(SimpleScheduleBuilder.simpleSchedule()
+                        .withIntervalInSeconds(30)
+                        .repeatForever())
+                .startNow()
                 .build();
     }
 }

@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
@@ -53,6 +54,25 @@ public final class JobRunAuditRepository {
             FROM JOB_RUN_AUDIT
             WHERE CORRELATION_ID = ?
             ORDER BY ACTUAL_FIRE_TIME, CREATED_AT, FIRE_INSTANCE_ID
+            """;
+    private static final String SELECT_LATEST_BY_JOB_KEY = """
+            SELECT
+              CORRELATION_ID,
+              FIRE_INSTANCE_ID,
+              ROOT_JOB_NAME,
+              ROOT_JOB_GROUP,
+              PARENT_JOB_NAME,
+              PARENT_JOB_GROUP,
+              JOB_NAME,
+              JOB_GROUP,
+              TRIGGER_NAME,
+              TRIGGER_GROUP,
+              STATUS,
+              ERROR_MESSAGE
+            FROM JOB_RUN_AUDIT
+            WHERE JOB_NAME = ? AND JOB_GROUP = ?
+            ORDER BY ACTUAL_FIRE_TIME DESC, CREATED_AT DESC, FIRE_INSTANCE_ID DESC
+            FETCH FIRST 1 ROW ONLY
             """;
 
     private final String jdbcUrl;
@@ -110,6 +130,29 @@ public final class JobRunAuditRepository {
             }
         }
         return records;
+    }
+
+    public Optional<JobRunAuditRecord> findLatestByJobKey(JobKey jobKey) throws SQLException {
+        try (Connection connection = openConnection();
+                PreparedStatement statement = connection.prepareStatement(SELECT_LATEST_BY_JOB_KEY)) {
+            statement.setString(1, jobKey.getName());
+            statement.setString(2, jobKey.getGroup());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new JobRunAuditRecord(
+                        resultSet.getString("CORRELATION_ID"),
+                        resultSet.getString("FIRE_INSTANCE_ID"),
+                        JobKey.jobKey(resultSet.getString("ROOT_JOB_NAME"), resultSet.getString("ROOT_JOB_GROUP")),
+                        toNullableJobKey(resultSet.getString("PARENT_JOB_NAME"), resultSet.getString("PARENT_JOB_GROUP")),
+                        JobKey.jobKey(resultSet.getString("JOB_NAME"), resultSet.getString("JOB_GROUP")),
+                        resultSet.getString("TRIGGER_NAME"),
+                        resultSet.getString("TRIGGER_GROUP"),
+                        JobRunAuditStatus.valueOf(resultSet.getString("STATUS")),
+                        resultSet.getString("ERROR_MESSAGE")));
+            }
+        }
     }
 
     private void upsertAuditRow(

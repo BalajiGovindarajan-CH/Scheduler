@@ -32,11 +32,15 @@ public final class QuartzBootstrap {
         JobRunAuditRepository jobRunAuditRepository = new JobRunAuditRepository(quartzProperties);
         JobDetail jobDetail = QuartzConfiguration.createPrimaryJobDetail();
         JobDetail childJobDetail = QuartzConfiguration.createDownstreamJobDetail();
+        JobDetail scheduledDependentJobDetail = QuartzConfiguration.createScheduledDependentJobDetail();
         Trigger trigger = QuartzConfiguration.createPrimaryTrigger();
+        Trigger scheduledDependentTrigger = QuartzConfiguration.createScheduledDependentTrigger();
 
         registerDurableJobIfMissing(scheduler, childJobDetail);
-        registerDependencyIfMissing(dependencyRepository, jobDetail, childJobDetail);
+        registerDependencyIfMissing(dependencyRepository, jobDetail, childJobDetail, TriggerType.FIRE_ONCE_IMMEDIATELY);
+        registerDependencyIfMissing(dependencyRepository, jobDetail, scheduledDependentJobDetail, TriggerType.SCHEDULE_ONLY);
         registerScheduleIfMissing(scheduler, jobDetail, trigger);
+        registerScheduleIfMissing(scheduler, scheduledDependentJobDetail, scheduledDependentTrigger);
         attachCommonDependencyListener(scheduler, dependencyRepository, jobRunAuditRepository);
         scheduler.start();
 
@@ -88,12 +92,15 @@ public final class QuartzBootstrap {
     }
 
     private static void registerDependencyIfMissing(
-            JobDependencyRepository dependencyRepository, JobDetail parentJobDetail, JobDetail childJobDetail)
+            JobDependencyRepository dependencyRepository,
+            JobDetail parentJobDetail,
+            JobDetail childJobDetail,
+            TriggerType triggerType)
             throws java.sql.SQLException {
         dependencyRepository.upsertDependency(
                 parentJobDetail.getKey(),
                 childJobDetail.getKey(),
-                TriggerType.FIRE_ONCE_IMMEDIATELY);
+                triggerType);
     }
 
     private static void attachCommonDependencyListener(
